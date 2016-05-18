@@ -31,7 +31,7 @@ int offCounter;
 
 /* Inductive charger as switch - using coil from hacked Clarisonic device */
 const int coilPin = A5;
-const int interruptPin = 2;
+const int interruptPin = 2; 
 volatile int coilVal;
 boolean docked;
 
@@ -51,6 +51,10 @@ int startHead       = 3;   // for start-up animation, which pixel is the head
 int startDelay      = 10;
 int startLapCounter = 0;
 boolean settled = true; // used for escaping the sleep animation if interrupted
+
+/* Manual Reset */
+const int resetPin = 11;
+int resetCounter = 0;
 
 /* Dev debug vars */
 const int debugLED = 2; // not used in production
@@ -73,7 +77,6 @@ void setup() {
   ring.show();
 
   enableInterrupt(interruptPin, dockChange, CHANGE);
-
 }
 
 ///////////////////////////////////////////////////// LOOP /////////////
@@ -81,9 +84,6 @@ void setup() {
 void loop() { 
   checkCapSensors(); // has 10ms delay
   checkDock();
-
-  Serial.println(analogRead(coilPin));
-  Serial.println(docked);
 
   settled = docked;
   if (docked) {
@@ -121,11 +121,11 @@ void chargingRing() {
 void startRing() {
   settled = false; // interrupts chargingRing sleep animation
   while (startLapCounter < 3) {
-    clearPixels();
+    setPixelsRing(0);
 
     int pos = startHead;
     for (int j = 0; j < startLen; j++) {
-      ring.setPixelColor(pos++, ring.Color(0, 0, 255));
+      ring.setPixelColor(pos++, ring.Color(0, 0, blueThresh));
       if (pos > ringTotalLEDs) {
         pos = 0;
       }
@@ -142,8 +142,7 @@ void startRing() {
     delay(startDelay);
   }
   startLapCounter = 0;
-  clearPixels();
-  ring.show();
+  setPixelsRing(0);
 }
 
 //////////////////////////////////////////////// SET ALL PANELS //////////
@@ -188,9 +187,18 @@ void setLeds(int *panel, int colorCounter) {
 
 void checkCapSensors() {
   if (!docked) {
-    long cap1 =  cs_1.capacitiveSensor(30);
-    long cap2 =  cs_2.capacitiveSensor(30);
+    double cap1 =  cs_1.capacitiveSensor(30);
+    double cap2 =  cs_2.capacitiveSensor(30);
 
+    /* ONE TOUCHING = RESET MCU */
+    if ( (touch && cap1 > touchThreshold && cap2 < 100) || (touch && cap2 > touchThreshold && cap1 < 100) ) {
+      resetCounter++;
+      if (resetCounter > 100) {
+        resetMCU();
+      }
+    }
+
+    /* BOTH TOUCHING = ACTIVATE DEVICE */
     if (cap1 > touchThreshold && cap2 > touchThreshold) {
       if (!touch) {
         setAllPanels();
@@ -202,6 +210,7 @@ void checkCapSensors() {
           setAllPanels();
           offCounter = 0;
           touch = false;
+          resetCounter = 0;
         } else {
           offCounter++;
         }
@@ -231,12 +240,29 @@ void checkDock() {
   }
 }
 
-///////////////////////////////////////////////////// CLEAR NEOPIXELS //////
 
-void clearPixels() {
-  for (int i = 0; i < ringTotalLEDs; i++) {
-    ring.setPixelColor(i, ring.Color(0, 0, 0));
-  }
+///////////////////////////////////////////////////// RESET MCU ////////////
+
+void resetMCU() {
+  Serial.println("RESETTING...");
+  // flash ack
+  setPixelsRing(0);
+  setPixelsRing(blueThresh);
+  delay(500);
+  setPixelsRing(0);
+  delay(500);
+  setPixelsRing(blueThresh);
+
+  pinMode(resetPin, OUTPUT);
+  digitalWrite(resetPin, LOW);
 }
 
+///////////////////////////////////////////////////// SET PIXELS RING ///////
+
+void setPixelsRing(int val) {
+  for (int i = 0; i < ringTotalLEDs; i++) {
+      ring.setPixelColor(i, ring.Color(0, 0, val));
+  }
+  ring.show();
+}
 
