@@ -193,7 +193,8 @@ void checkCapSensors() {
     /* ONE TOUCHING = RESET MCU */
     if ( (touch && cap1 > touchThreshold && cap2 < 100) || (touch && cap2 > touchThreshold && cap1 < 100) ) {
       resetCounter++;
-      if (resetCounter > 100) {
+      Serial.println(resetCounter);
+      if (resetCounter > 40) {
         resetMCU();
       }
     }
