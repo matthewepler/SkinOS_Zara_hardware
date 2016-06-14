@@ -236,7 +236,7 @@ void checkDock() {
       startRing();
       docked = false;
     }
-  } else if (coilVal > 350) {  // we are docked (charge from induction coils)
+  } else if (coilVal > 200) {  // we are docked (charge from induction coils)
     docked = true;
   }
 }
